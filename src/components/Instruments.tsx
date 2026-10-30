@@ -266,8 +266,26 @@ export function FMA({ s }: { s: State }) {
     </div>
   );
 }
+/** Absolute multiples of `step` around `value`, so a tape can scroll with the true value. */
+const tapeValues = (value: number, step: number, below: number, above: number) =>
+  Array.from(
+    { length: below + above + 1 },
+    (_, i) => Math.floor(value / step) * step + (i - below) * step,
+  );
 export function PFD({ s }: { s: State }) {
   const clip = useId().replaceAll(":", "");
+  const speedY = (v: number) => 167 - (v - s.speed) * 2.25,
+    altitudeY = (v: number) => 167 - (v - s.altitude) * 0.12,
+    // Labels are drawn only when they fit whole; ticks may be cut by the clip.
+    labelFits = (y: number) => y > 48 && y < 290,
+    ladderLabelFits = (x: number, v: number) => {
+      const t = (-s.bank * Math.PI) / 180,
+        y = (s.pitch - v) * 6;
+      return (
+        Math.abs(x * Math.cos(t) - y * Math.sin(t)) <= 80 &&
+        Math.abs(x * Math.sin(t) + y * Math.cos(t)) <= 75
+      );
+    };
   return (
     <div className="pfd">
       <FMA s={s} />
@@ -280,6 +298,15 @@ export function PFD({ s }: { s: State }) {
           <clipPath id={clip}>
             <rect x="142" y="32" width="386" height="266" rx="5" />
           </clipPath>
+          <clipPath id={`${clip}-ladder`}>
+            <rect x="245" y="84" width="180" height="162" />
+          </clipPath>
+          <clipPath id={`${clip}-speed`}>
+            <rect x="50" y="40" width="74" height="258" />
+          </clipPath>
+          <clipPath id={`${clip}-altitude`}>
+            <rect x="546" y="40" width="84" height="258" />
+          </clipPath>
         </defs>
         <rect x="142" y="32" width="386" height="266" rx="5" fill="#182d3a" />
         <g clipPath={`url(#${clip})`}>
@@ -289,32 +316,42 @@ export function PFD({ s }: { s: State }) {
             <rect x="-450" y="-600" width="900" height="600" fill="#285b79" />
             <rect x="-450" y="0" width="900" height="600" fill="#63543f" />
             <path d="M-450 0H450" stroke="#e3eaf0" strokeWidth="2" />
-            {[-20, -10, -5, 5, 10, 20].map((v) => (
-              <g key={v} transform={`translate(0 ${-v * 6})`}>
-                <path
-                  d={`M${v % 10 === 0 ? -56 : -28} 0H${v % 10 === 0 ? 56 : 28}`}
-                  stroke="white"
-                  opacity=".8"
-                />
-                {v % 10 === 0 && (
-                  <>
-                    <text x="-73" y="4" textAnchor="end">
-                      {Math.abs(v)}
-                    </text>
-                    <text x="73" y="4">
-                      {Math.abs(v)}
-                    </text>
-                  </>
-                )}
-              </g>
-            ))}
+          </g>
+          <g clipPath={`url(#${clip}-ladder)`}>
+            <g
+              transform={`translate(335 165) rotate(${-s.bank}) translate(0 ${s.pitch * 6})`}
+            >
+              {[-30, -25, -20, -15, -10, -5, 5, 10, 15, 20, 25, 30].map((v) => (
+                <g key={v} transform={`translate(0 ${-v * 6})`}>
+                  <path
+                    d={`M${v % 10 === 0 ? -56 : -28} 0H${v % 10 === 0 ? 56 : 28}`}
+                    stroke="white"
+                    strokeOpacity=".8"
+                  />
+                  {v % 10 === 0 && (
+                    <>
+                      {ladderLabelFits(-79, v) && (
+                        <text x="-73" y="4" textAnchor="end">
+                          {Math.abs(v)}
+                        </text>
+                      )}
+                      {ladderLabelFits(79, v) && (
+                        <text x="73" y="4">
+                          {Math.abs(v)}
+                        </text>
+                      )}
+                    </>
+                  )}
+                </g>
+              ))}
+            </g>
           </g>
         </g>
         <path
-          d="M240 67A110 110 0 0 1 430 67"
+          d="M234.5 107A116 116 0 0 1 435.5 107"
           fill="none"
           stroke="#e2e6e9"
-          opacity=".7"
+          strokeOpacity=".7"
         />
         {[-60, -30, -20, -10, 0, 10, 20, 30, 60].map((v) => (
           <path
@@ -349,14 +386,23 @@ export function PFD({ s }: { s: State }) {
           BANK {s.bank.toFixed(1)}° · PITCH {s.pitch.toFixed(1)}°
         </text>
         <rect x="50" y="40" width="74" height="258" rx="3" fill="#192a35" />
-        {[-40, -20, 0, 20, 40].map((v) => (
-          <g key={v} transform={`translate(0 ${168 - v * 2.25})`}>
-            <text x="98" textAnchor="end">
-              {Math.max(0, Math.round(s.speed / 10) * 10 + v)}
-            </text>
-            <path d="M107-5h13" stroke="#7d909b" />
-          </g>
-        ))}
+        <g clipPath={`url(#${clip}-speed)`}>
+          {tapeValues(s.speed, 10, 6, 7)
+            .filter((v) => v >= 0)
+            .map((v) => (
+              <g key={v} transform={`translate(0 ${speedY(v)})`}>
+                {v % 20 === 0 && labelFits(speedY(v)) && (
+                  <text x="98" y="4" textAnchor="end">
+                    {v}
+                  </text>
+                )}
+                <path
+                  d={v % 20 === 0 ? "M107 0h13" : "M113 0h7"}
+                  stroke="#7d909b"
+                />
+              </g>
+            ))}
+        </g>
         <path d="M44 148h71l13 19-13 19H44z" fill="#0a121a" stroke="#e9eef0" />
         <text x="83" y="175" textAnchor="middle" className="pfd-number">
           {s.speed.toFixed(0)}
@@ -365,14 +411,23 @@ export function PFD({ s }: { s: State }) {
           {s.controls.selectedSpeed} KT
         </text>
         <rect x="546" y="40" width="84" height="258" rx="3" fill="#192a35" />
-        {[-400, -200, 0, 200, 400].map((v) => (
-          <g key={v} transform={`translate(0 ${168 - v * 0.12})`}>
-            <text x="621" textAnchor="end">
-              {Math.max(0, Math.round(s.altitude / 100) * 100 + v)}
-            </text>
-            <path d="M549-5h10" stroke="#7d909b" />
-          </g>
-        ))}
+        <g clipPath={`url(#${clip}-altitude)`}>
+          {tapeValues(s.altitude, 100, 11, 12)
+            .filter((v) => v >= 0)
+            .map((v) => (
+              <g key={v} transform={`translate(0 ${altitudeY(v)})`}>
+                {v % 200 === 0 && labelFits(altitudeY(v)) && (
+                  <text x="621" y="4" textAnchor="end">
+                    {v}
+                  </text>
+                )}
+                <path
+                  d={v % 200 === 0 ? "M549 0h10" : "M549 0h5"}
+                  stroke="#7d909b"
+                />
+              </g>
+            ))}
+        </g>
         <path
           d="M633 148h-73l-13 19 13 19h73z"
           fill="#0a121a"
@@ -389,16 +444,18 @@ export function PFD({ s }: { s: State }) {
           {s.vs.toFixed(0)}
         </text>
         <path d="M182 318H488" stroke="#566974" />
-        {[-60, -30, 0, 30, 60].map((v) => (
-          <g key={v} transform={`translate(${335 + v * 2} 318)`}>
-            <path d="M0 0v7" stroke="#92a3ad" />
-            <text x="0" y="27" textAnchor="middle">
-              {((Math.round(s.heading / 10) * 10 + v + 360) % 360)
-                .toString()
-                .padStart(3, "0")}
-            </text>
-          </g>
-        ))}
+        {tapeValues(s.heading, 10, 8, 9)
+          .filter((v) => Math.abs((v - s.heading) * 2) <= 150)
+          .map((v) => (
+            <g key={v} transform={`translate(${335 + (v - s.heading) * 2} 318)`}>
+              <path d={v % 30 === 0 ? "M0 0v7" : "M0 0v4"} stroke="#92a3ad" />
+              {v % 30 === 0 && (
+                <text x="0" y="27" textAnchor="middle">
+                  {(((v % 360) + 360) % 360).toString().padStart(3, "0")}
+                </text>
+              )}
+            </g>
+          ))}
         <rect
           x="301"
           y="306"
@@ -499,10 +556,10 @@ export function Aircraft({
           strokeDasharray="4 7"
         />
         <text x="557" y="178">
-          ROLL
+          PITCH
         </text>
         <text x="317" y="34">
-          PITCH
+          ROLL
         </text>
         <text x="76" y="298">
           YAW
@@ -588,7 +645,6 @@ export function Aircraft({
             </g>
           )}
         </g>
-        <path d="M88 71h63M120 39v64" stroke="#7cd2df" opacity=".5" />
         <text x="66" y="332" className="pfd-small">
           SCHEMATIC ATTITUDE VIEW · NOT TO SCALE
         </text>

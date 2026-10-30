@@ -929,6 +929,10 @@ export function ApproachScene({ s }: { s: State }) {
           y={runwayTop + 30}
           textAnchor="middle"
           fill="#e5e4d4"
+          stroke="#222d32"
+          strokeWidth="5"
+          strokeLinejoin="round"
+          paintOrder="stroke"
           fontSize="15"
         >
           09
