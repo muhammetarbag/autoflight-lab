@@ -169,9 +169,12 @@ class Checks:
         self.set_range("Approach crosswind", 20)
         p.get_by_role("button", name="APP ARM", exact=True).click()
         expect(p.get_by_role("slider", name="Approach lateral offset")).to_be_disabled()
+        expect(p.locator(".fma")).to_contain_text("HDG")
+        expect(p.locator(".fma")).to_contain_text("ARMED LOC · G/S")
         p.get_by_role("button", name="12×", exact=True).click()
         p.clock.run_for(23000)
         expect(p.locator(".phase-banner strong")).to_have_text("TOUCHDOWN")
+        expect(p.locator(".fma")).to_contain_text("RETARD")
         assert self.number("ALTITUDE / RA*") == 0
         assert p.locator(".phase-progress .done").count() == 7
         p.screenshot(path=str(ARTIFACTS / "autoland-touchdown.png"), full_page=True)
@@ -185,6 +188,7 @@ class Checks:
         p.get_by_role("button", name="GO-AROUND", exact=True).click()
         p.clock.run_for(2000)
         expect(p.locator(".phase-banner strong")).to_have_text("GO-AROUND")
+        expect(p.locator(".fma div").first).to_contain_text("GA")
         assert self.number("ALTITUDE / RA*") > 1000
         self.interactions.update(["autoland:APP ARM", "autoland:GO-AROUND", "autoland:critical failure"])
 
@@ -201,7 +205,7 @@ class Checks:
         p.get_by_role("button", name="NAV intercept başlat").click()
         expect(p.locator(".fma")).to_contain_text("NAV INT")
         p.get_by_role("button", name="APP yaklaşmasını hazırla").click()
-        expect(p.locator(".fma")).to_contain_text("G/S INT")
+        expect(p.locator(".fma")).to_contain_text("ARMED LOC · G/S")
         p.get_by_role("button", name="Heading hedefini 150° yap").click()
         expect(p.locator(".pfd svg")).to_be_visible()
         self.interactions.update(["navigation:7 sensors", "navigation:NAV", "navigation:APP", "navigation:HDG target"])

@@ -33,13 +33,12 @@ export type Failure =
   | "power"
   | "engineSlow"
   | "atDisconnect";
-export type Lateral = "ROLL" | "HDG" | "NAV INT" | "NAV" | "LOC INT" | "LOC";
+export type Lateral = "ROLL" | "HDG" | "NAV INT" | "NAV" | "LOC";
 export type Vertical =
   | "PITCH"
   | "ALT HOLD"
   | "ALT ACQ"
   | "VS"
-  | "G/S INT"
   | "G/S"
   | "FLARE"
   | "LAND"
@@ -194,6 +193,18 @@ const bounds: Partial<Record<keyof Controls, [number, number]>> = {
   approachOffset: [-500, 500],
   glideOffset: [-250, 250],
 };
+/** Autoland lab start: ATC-style vector to final. 30° intercept heading; level below the G/S, -1000 ft/min V/S above it. */
+function finalVector(s: State): void {
+  const offset = s.controls.approachOffset;
+  s.heading = s.controls.selectedHeading =
+    offset > 0 ? 60 : offset < 0 ? 120 : 90;
+  s.lateral = "HDG";
+  s.holdAltitude = s.altitude;
+  if (s.controls.glideOffset > 0) {
+    s.vertical = "VS";
+    s.controls.selectedVS = -1000;
+  } else s.vertical = "ALT HOLD";
+}
 export function initialState(lab: Lab = "modes"): State {
   const landing = lab === "autoland";
   const controls: Controls = {
@@ -224,7 +235,7 @@ export function initialState(lab: Lab = "modes"): State {
     approachOffset: 240,
     glideOffset: 120,
   };
-  return {
+  const s: State = {
     lab,
     time: 0,
     controls,
@@ -269,7 +280,18 @@ export function initialState(lab: Lab = "modes"): State {
     phaseLog: ["READY"],
     warnings: [],
   };
+  if (landing) finalVector(s);
+  return s;
 }
+/** A/T annunciation: GA thrust in go-around, RETARD to idle from flare through touchdown, SPEED otherwise. */
+export const thrustMode = (s: State): string =>
+  !s.controls.at
+    ? "MAN THR"
+    : s.phase === "GO-AROUND"
+      ? "GA"
+      : ["FLARE", "LAND", "TOUCHDOWN"].includes(s.phase)
+        ? "RETARD"
+        : "SPEED";
 export function setControl<K extends keyof Controls>(
   s: State,
   key: K,
@@ -290,6 +312,7 @@ export function setControl<K extends keyof Controls>(
     next.lateralOffset = next.controls.approachOffset;
     next.altitude = glideAltitude(next.distance) + next.controls.glideOffset;
     next.gsError = next.controls.glideOffset;
+    finalVector(next);
   }
   return monitor(next);
 }
@@ -395,10 +418,15 @@ export function selectMode(
     armed: [...s.armed],
     phaseLog: [...s.phaseLog],
   };
+  // Before capture, HDG/NAV and ALT/VS stay usable with LOC and G/S armed; overriding a captured axis exits the approach.
+  const overridesCapture =
+    ((mode === "HDG" || mode === "NAV") && n.lateral === "LOC") ||
+    (["ALT HOLD", "ALT ACQ", "VS"].includes(mode) &&
+      ["G/S", "FLARE", "LAND"].includes(n.vertical));
   if (
     mode !== "APP" &&
     mode !== "GA" &&
-    (approachPhases.includes(n.phase) ||
+    ((approachPhases.includes(n.phase) && overridesCapture) ||
       n.phase === "GO-AROUND" ||
       n.phase === "INTERRUPTED")
   ) {
@@ -410,7 +438,7 @@ export function selectMode(
   }
   if (mode === "HDG") {
     n.lateral = "HDG";
-    n.armed = n.armed.filter((x) => !["NAV", "LOC"].includes(x));
+    n.armed = n.armed.filter((x) => x !== "NAV");
   }
   if (mode === "NAV" && !n.failures.nav) {
     n.lateral = "NAV INT";
@@ -437,11 +465,10 @@ export function selectMode(
       n.lateralOffset = n.controls.approachOffset;
       n.speed = 140;
       n.controls.selectedSpeed = 140;
+      n.holdAltitude = n.altitude;
     }
     n.controls.ap = true;
     n.controls.at = true;
-    n.lateral = "LOC INT";
-    n.vertical = "G/S INT";
     n.armed = ["LOC", "G/S", "FLARE"];
     transition(n, "APP ARM");
   }
@@ -527,7 +554,7 @@ export function step(previous: State, dt: number): State {
       n.armed = n.armed.filter((x) => x !== "NAV");
     }
   }
-  if (landing) {
+  if (landing && n.lateral === "LOC") {
     const crab =
       (Math.asin(clamp(c.crosswind / Math.max(90, n.speed), -0.4, 0.4)) * 180) /
       Math.PI;
@@ -576,8 +603,8 @@ export function step(previous: State, dt: number): State {
       targetVS = clamp((n.holdAltitude - n.altitude) * 3, -1800, 1800);
     }
   }
-  if (landing) {
-    n.gsError = n.altitude - glideAltitude(n.distance);
+  if (landing) n.gsError = n.altitude - glideAltitude(n.distance);
+  if (landing && ["G/S", "FLARE", "LAND"].includes(n.vertical)) {
     targetVS = clamp(
       -n.groundSpeed * 101.27 * Math.tan(Math.PI / 60) - n.gsError * 2.2,
       -1800,
@@ -685,16 +712,19 @@ export function step(previous: State, dt: number): State {
     n.gsError = n.altitude - glideAltitude(n.distance);
   }
   if (landing) {
-    if (n.phase === "APP ARM" && Math.abs(n.lateralOffset) < 90) {
-      transition(n, "LOCALIZER CAPTURE");
+    // LOC and G/S capture independently; each replaces only its own axis' previous mode.
+    if (n.armed.includes("LOC") && Math.abs(n.lateralOffset) < 90) {
+      if (n.phase === "APP ARM") transition(n, "LOCALIZER CAPTURE");
       n.lateral = "LOC";
       n.armed = n.armed.filter((x) => x !== "LOC");
-    } else if (n.phase === "LOCALIZER CAPTURE" && Math.abs(n.gsError) < 65) {
+    }
+    if (n.armed.includes("G/S") && Math.abs(n.gsError) < 65) {
       transition(n, "GLIDESLOPE CAPTURE");
       n.vertical = "G/S";
       n.armed = n.armed.filter((x) => x !== "G/S");
     } else if (
       n.phase === "GLIDESLOPE CAPTURE" &&
+      n.lateral === "LOC" &&
       Math.abs(n.lateralOffset) < 45 &&
       Math.abs(n.gsError) < 35
     ) {
