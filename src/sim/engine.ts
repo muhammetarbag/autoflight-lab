@@ -395,7 +395,13 @@ export function selectMode(
     armed: [...s.armed],
     phaseLog: [...s.phaseLog],
   };
-  if (mode !== "APP" && mode !== "GA" && approachPhases.includes(n.phase)) {
+  if (
+    mode !== "APP" &&
+    mode !== "GA" &&
+    (approachPhases.includes(n.phase) ||
+      n.phase === "GO-AROUND" ||
+      n.phase === "INTERRUPTED")
+  ) {
     transition(n, "READY");
     n.armed = [];
     n.lateral = "HDG";
@@ -408,7 +414,7 @@ export function selectMode(
   }
   if (mode === "NAV" && !n.failures.nav) {
     n.lateral = "NAV INT";
-    n.armed = ["NAV"];
+    n.armed = [...n.armed.filter((x) => x !== "NAV"), "NAV"];
   }
   if (mode === "ALT HOLD") {
     n.vertical = "ALT HOLD";
@@ -417,11 +423,11 @@ export function selectMode(
   }
   if (mode === "ALT ACQ") {
     n.vertical = "ALT ACQ";
-    n.armed = ["ALT"];
+    n.armed = [...n.armed.filter((x) => x !== "ALT"), "ALT"];
   }
   if (mode === "VS") {
     n.vertical = "VS";
-    n.armed = ["ALT"];
+    n.armed = [...n.armed.filter((x) => x !== "ALT"), "ALT"];
   }
   if (mode === "APP") {
     if (n.phase === "TOUCHDOWN") return n;
