@@ -311,6 +311,37 @@ test("GA does not repair an autopilot-channel failure", () => {
   assert.ok(s.warnings.some((v) => v.includes("manuel uçuş")));
   near(s.elevator, 0, 0.001);
 });
+test("selecting another pitch mode exits go-around and releases GA thrust", () => {
+  let s = advance(selectMode(initialState("modes"), "GA"), 10);
+  assert.equal(s.phase, "GO-AROUND");
+  s = advance(selectMode(s, "ALT HOLD"), 60);
+  assert.equal(s.phase, "READY");
+  assert.equal(s.vertical, "ALT HOLD");
+  assert.ok(s.thrustCommand < 0.92);
+  near(s.speed, s.controls.selectedSpeed, 3);
+});
+test("re-engaged AP follows HDG after an interrupted approach", () => {
+  let s = setControl(
+    advance(selectMode(initialState("modes"), "APP"), 5),
+    "ap",
+    false,
+  );
+  assert.equal(s.phase, "INTERRUPTED");
+  s = setControl(setControl(s, "ap", true), "selectedHeading", 150);
+  s = advance(selectMode(s, "HDG"), 100);
+  assert.equal(s.phase, "READY");
+  near(s.heading, 150, 0.5);
+});
+test("lateral and vertical armed modes are independent", () => {
+  let s = selectMode(
+    setControl(initialState("modes"), "selectedAltitude", 6000),
+    "VS",
+  );
+  s = selectMode(s, "NAV");
+  assert.deepEqual(s.armed, ["ALT", "NAV"]);
+  s = selectMode(s, "ALT ACQ");
+  assert.deepEqual(s.armed, ["NAV", "ALT"]);
+});
 test("air data loss prevents altitude and speed control, including re-selection", () => {
   let s = setFailure(initialState(), "airData", true);
   assert.equal(s.controls.at, false);
