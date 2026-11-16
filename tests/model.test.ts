@@ -11,6 +11,7 @@ import {
   setControl,
   setFailure,
   step,
+  thrustMode,
   type Controls,
   type State,
 } from "../src/sim/engine.ts";
@@ -118,13 +119,14 @@ test("NAV intercept arms, captures, then tracks near-zero lateral deviation", ()
   near(end.navDeviation, 0, 0.001);
   assert.ok(!end.armed.includes("NAV"));
 });
-test("selecting HDG after APP exits approach guidance instead of overriding HDG", () => {
+test("selecting HDG after LOC capture exits approach guidance instead of overriding HDG", () => {
+  const captured = advance(
+    selectMode(setControl(initialState(), "approachOffset", 0), "APP"),
+    10,
+  );
+  assert.equal(captured.lateral, "LOC");
   const s = selectMode(
-    setControl(
-      advance(selectMode(initialState(), "APP"), 10),
-      "selectedHeading",
-      150,
-    ),
+    setControl(captured, "selectedHeading", 150),
     "HDG",
   );
   assert.equal(s.phase, "READY");
@@ -257,6 +259,47 @@ test("APP starts armed and default autoland visits every physical phase in order
   ]);
   near(end.altitude, 0, 0.01);
   assert.ok(Math.abs(end.lateralOffset) < 30);
+});
+test("APP only arms LOC and G/S; previous modes fly until each axis captures", () => {
+  let s = selectMode(initialState("autoland"), "APP");
+  assert.equal(s.lateral, "HDG");
+  assert.equal(s.vertical, "VS");
+  s = advance(s, 6);
+  assert.equal(s.lateral, "LOC");
+  assert.equal(s.vertical, "VS");
+  assert.ok(s.armed.includes("G/S") && !s.armed.includes("LOC"));
+  s = advance(s, 20);
+  assert.equal(s.vertical, "G/S");
+  assert.ok(!s.armed.includes("G/S"));
+});
+test("below the glideslope ALT HOLD keeps altitude until G/S capture", () => {
+  let s = selectMode(
+    setControl(initialState("autoland"), "glideOffset", -200),
+    "APP",
+  );
+  const level = s.altitude;
+  s = advance(s, 8);
+  assert.equal(s.vertical, "ALT HOLD");
+  near(s.altitude, level, 5);
+  s = advance(s, 20);
+  assert.equal(s.vertical, "G/S");
+});
+test("HDG and V/S stay selectable before capture without cancelling APP", () => {
+  let s = selectMode(initialState(), "APP");
+  s = selectMode(selectMode(s, "HDG"), "VS");
+  assert.equal(s.phase, "APP ARM");
+  assert.ok(s.armed.includes("LOC") && s.armed.includes("G/S"));
+  assert.equal(s.vertical, "VS");
+});
+test("A/T annunciates SPEED, GA thrust and RETARD by phase", () => {
+  const s = selectMode(initialState("autoland"), "APP");
+  assert.equal(thrustMode(s), "SPEED");
+  assert.equal(thrustMode(advance(s, 300)), "RETARD");
+  let flare = s;
+  while (flare.phase !== "FLARE") flare = step(flare, 0.025);
+  assert.equal(thrustMode(flare), "RETARD");
+  assert.equal(thrustMode(selectMode(advance(s, 60), "GA")), "GA");
+  assert.equal(thrustMode(setControl(s, "at", false)), "MAN THR");
 });
 test("27 offset / glideslope / crosswind combinations capture and land", () => {
   for (const lateral of [-500, 0, 500])

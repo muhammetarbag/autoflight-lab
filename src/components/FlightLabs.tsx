@@ -56,7 +56,7 @@ export function ModePanel({ sim }: { sim: Simulation }) {
             key={mode}
             aria-pressed={
               mode === "APP"
-                ? ["LOC", "LOC INT"].includes(s.lateral)
+                ? s.lateral === "LOC" || s.armed.includes("LOC")
                 : mode === "NAV"
                   ? s.lateral.startsWith("NAV")
                   : mode === "GA"
@@ -1128,7 +1128,7 @@ export function AutolandLab({ sim }: { sim: Simulation }) {
                   ? "Pitch komutu 8°, thrust talebi %92. Bu genel modelde published missed-approach route bulunmaz."
                   : s.phase === "TOUCHDOWN"
                     ? "Tüm yakalama koşulları sağlandı ve temas gerçekleşti. Yavaşlama normalize edilmiş sabit bir modeldir."
-                    : "LOC capture: |sapma| < 90 m. Ardından G/S capture: |sapma| < 65 ft. FLARE ≤ 50 ft; LAND ≤ 12 ft. Eşikler yalnız bu deneyin varsayımlarıdır."}
+                    : "LOC ve G/S armed; yakalanana kadar önceki HDG ve ALT HOLD / VS modları uçar. LOC capture: |sapma| < 90 m; G/S capture: |sapma| < 65 ft, her eksen ayrı. FLARE ≤ 50 ft; LAND ≤ 12 ft. Eşikler yalnız bu deneyin varsayımlarıdır."}
             </p>
           </div>
         </Panel>

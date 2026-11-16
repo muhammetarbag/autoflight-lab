@@ -7,7 +7,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { Controls, Failure, Sample, State } from "../sim/engine";
-import { clamp, setControl, setFailure } from "../sim/engine";
+import { clamp, setControl, setFailure, thrustMode } from "../sim/engine";
 import type { Simulation } from "../sim/useSimulation";
 import { failureInfo } from "../content/course";
 
@@ -237,7 +237,7 @@ export function FMA({ s }: { s: State }) {
     <div className="fma">
       <div>
         <span>THRUST</span>
-        <strong>{s.controls.at ? "SPEED" : "MAN THR"}</strong>
+        <strong>{thrustMode(s)}</strong>
         <small>
           {s.failures.atServo
             ? "SERVO FAIL"

@@ -83,9 +83,11 @@ Tek fizik durumu `src/sim/engine.ts` içindedir. UI, yüzeyler, göstergeler ve 
 - Normal adım **0.025 s**; motor tek çağrıda en çok **0.05 s** kabul eder. Arka plandaki sekmede fizik durur; geri dönüşte kayıp süre birden uygulanmaz. 1×/4×/12×, aynı adımları daha hızlı yürütür.
 - Katsayılar, kazançlar, drag, kütle aralıkları, limitler ve capture eşikleri **eğitim için seçilmiştir**; kalibre edilmiş uçak verisi değildir. Thrust limiti nedeniyle her hız hedefi her drag koşulunda erişilebilir değildir; monitor bunu bildirir.
 - Gerçek Dutch roll, aerodinamik roll-yaw bağlaşımı ve rotor aerodinamiği çözülmez. Yaw/sideslip değeri basitleştirilmiş bir sapma temsilidir. Uçak resmi tutumun geometrik izdüşümüdür; 3D airframe veya CFD modeli değildir.
-- NAV INT ve G/S INT, bu laboratuvarın yakalamayı görünür kılan genel intercept yardımcılarıdır; üretici FMA mod adı olarak yorumlanmamalıdır.
+- NAV INT, bu laboratuvarın yakalamayı görünür kılan genel intercept yardımcısıdır; üretici FMA mod adı olarak yorumlanmamalıdır.
+- APP yalnız LOC ve G/S'yi armed yapar; yakalamaya kadar önceki lateral (HDG/NAV) ve vertical (ALT HOLD/VS) modlar uçağı yönetir. Autoland deneyi 30° intercept heading ile başlar; G/S altındaysa ALT HOLD, üstündeyse −1000 ft/min VS kullanır. Yakalamadan önce HDG/VS seçmek APP'yi iptal etmez; yakalanmış ekseni geçersiz kılan mod seçimi yaklaşmadan çıkar.
+- A/T FMA: normalde SPEED, go-around'da GA, FLARE'den temasa kadar RETARD; A/T kapalıyken MAN THR.
 - Autoland düz arazi, sıfır pist kotu ve 3° yaklaşma yolu kullanır. Dolayısıyla sağlam RA ile altitude aynı sayıya karşılık gelir. LOC/G/S sapmaları metre/feet cinsindendir; ILS dot ölçeği değildir.
-- Eğitim capture eşikleri: LOC <90 m; sonra G/S <65 ft; yaklaşma kararlılığı <45 m / <35 ft; FLARE ≤50 ft; LAND ≤12 ft. Fazlar fiziksel duruma göre ilerler. Dokunma sonrası yavaşlama sabit ve normalize edilmiştir.
+- Eğitim capture eşikleri: LOC <90 m; G/S <65 ft (bağımsız; bazı uçaklar gibi G/S, LOC'dan önce yakalanabilir); yaklaşma kararlılığı <45 m / <35 ft; FLARE ≤50 ft; LAND ≤12 ft. Fazlar fiziksel duruma göre ilerler. Dokunma sonrası yavaşlama sabit ve normalize edilmiştir.
 - Her kritik yaklaşma arızasında autoland kesilir. Aircraft-specific redundancy, fail-passive/fail-operational, CAT II/III yetkilendirmesi, alert height veya published missed-approach route modellenmez.
 - Arızalı sensörün fiziksel değeri eğitim için görünür kalabilir; validity uyarısı buna eşlik eder. Arıza giderilmesi ayrılmış AP/YD/A/T'yi kendiliğinden yeniden bağlamaz. AP arızası varken GA, FD talebidir ve otomatik kumanda sağlamaz.
 - Gerçek uçak bileşen konumları, bus mimarisi ve güç yedekliliği değişebilir. Harita bakım yerleşim dokümanı değildir.
